@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -54,6 +55,25 @@ class RunnerTests(unittest.TestCase):
 
     def execute(self, agent=None):
         return run(self.request, self.profile, self.state, agent)
+
+    def test_cli_termination_reaps_running_check(self):
+        marker = self.root/'child-pid'
+        self.profile['checks']['value']['argv'] = [sys.executable, '-c',
+            'import os,time; from pathlib import Path; Path('+repr(str(marker))+').write_text(str(os.getpid())); time.sleep(60)']
+        request, profile = self.root/'request.json', self.root/'profile.json'
+        request.write_text(json.dumps(self.request)); profile.write_text(json.dumps(self.profile))
+        process = subprocess.Popen([sys.executable, '-m', 'qa_agents', 'run', str(request), '--profile', str(profile),
+                                    '--state-dir', str(self.state)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            deadline = time.monotonic()+5
+            while not marker.exists() and time.monotonic()<deadline: time.sleep(.02)
+            self.assertTrue(marker.exists())
+            child = int(marker.read_text())
+            process.terminate(); process.wait(timeout=3)
+            with self.assertRaises(ProcessLookupError): os.kill(child, 0)
+            self.assertFalse((self.state/'run-1/result.json').exists())
+        finally:
+            if process.poll() is None: process.kill(); process.wait()
 
     def test_pass_is_bound_to_commit_and_actual_logs(self):
         result = self.execute()

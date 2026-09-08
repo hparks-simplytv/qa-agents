@@ -2,12 +2,20 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import signal
 
 from .agents import Anthropic
 from .runner import run
 
 
+def terminate(*_):
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    raise SystemExit(143)
+
+
 def main(argv=None):
+    # A supervising coordinator must be able to cancel checks and reap their process groups.
+    signal.signal(signal.SIGTERM, terminate)
     parser = argparse.ArgumentParser(description="Collect evidence and review a Git candidate")
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("run")
