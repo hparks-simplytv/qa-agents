@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qa-agents"
+version = "0.1.0"
+description = "Evidence-led QA planning and inspection for agent-built software"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+qa-agents = "qa_agents.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["qa_agents*"]
+
+[tool.setuptools.package-data]
+qa_agents = ["prompts/*.md"]

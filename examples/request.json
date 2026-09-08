@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "task_id": "pricing-discount",
+  "run_id": "pricing-discount-001",
+  "brief_version": "1",
+  "environment_id": "local-python-3.12",
+  "repo": "../../your-application",
+  "base": "REPLACE_WITH_FULL_BASE_COMMIT_ID",
+  "candidate": "REPLACE_WITH_FULL_CANDIDATE_COMMIT_ID",
+  "outcome": "Apply the discount to every item",
+  "criteria": [
+    {
+      "id": "quantity-discount",
+      "text": "Three items at 100 each with a 10 percent discount total 270",
+      "checks": ["discount-regression"]
+    }
+  ]
+}

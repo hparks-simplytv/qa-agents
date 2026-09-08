@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "review_files": ["tests/test_pricing.py"],
+  "checks": {
+    "unit": {
+      "argv": ["python3", "-m", "unittest", "discover", "-s", "tests"],
+      "required": true,
+      "timeout_seconds": 60
+    },
+    "discount-regression": {
+      "argv": ["python3", "-m", "unittest", "tests.test_pricing.PricingTest.test_quantity_discount"],
+      "required": false,
+      "timeout_seconds": 30
+    }
+  }
+}

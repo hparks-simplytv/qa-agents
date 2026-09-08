@@ -8,3 +8,5 @@ build/
 *.log
 *.db
 *.sqlite
+.qa-runs/
+*.egg-info/
