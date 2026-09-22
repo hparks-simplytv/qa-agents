@@ -169,3 +169,10 @@ host runs the registered checks in isolated environments. API credentials and
 provider overrides are removed, non-subscription authentication is rejected, and
 failed or incomplete reviews block without a fallback. Results retain the provider,
 requested model, effective model usage, structured reviews, and check evidence.
+
+
+Retained candidate review is bounded to 64 KB per source file and 48 KB per check
+log excerpt. Larger required logs still block rather than silently passing with
+truncated evidence. Subscription reviewer input is limited to 400 KB; oversized
+input is rejected before calling Claude. Source files are read whole from the
+immutable candidate archive, never truncated to fit.

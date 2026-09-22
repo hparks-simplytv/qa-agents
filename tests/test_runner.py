@@ -294,7 +294,7 @@ class RunnerTests(unittest.TestCase):
         self.assertIn('beacon-proposed.json', result['artifacts'])
 
     def test_truncated_model_evidence_cannot_pass(self):
-        self.profile["checks"]["value"]["argv"] = [sys.executable, "-c", "print('x' * 13000)"]
+        self.profile["checks"]["value"]["argv"] = [sys.executable, "-c", "print('x' * 48001)"]
         result = self.execute(FakeAgent())
         self.assertEqual(result["verdict"], "blocked")
         self.assertIn("Logs exceed", result["gaps"][0])
@@ -334,3 +334,28 @@ class ProviderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFileLimitTests(unittest.TestCase):
+    def archive(self, content, link=False):
+        import io, tarfile
+        stream = io.BytesIO()
+        with tarfile.open(fileobj=stream, mode='w') as archive:
+            member = tarfile.TarInfo('tests.py')
+            if link:
+                member.type = tarfile.SYMTYPE; member.linkname = '/outside'
+                archive.addfile(member)
+            else:
+                member.size = len(content); archive.addfile(member, io.BytesIO(content))
+        return stream.getvalue()
+
+    def test_retains_file_larger_than_old_limit_without_truncation(self):
+        from qa_agents.runner import review_files
+        content = b'x' * 30589
+        self.assertEqual(review_files(self.archive(content), ['tests.py']), {'tests.py': content.decode()})
+
+    def test_oversized_and_linked_files_still_block(self):
+        from qa_agents.runner import review_files
+        for archive in [self.archive(b'x' * 64001), self.archive(b'', link=True)]:
+            with self.assertRaises(ValueError):
+                review_files(archive, ['tests.py'])

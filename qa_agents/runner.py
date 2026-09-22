@@ -113,7 +113,7 @@ def review_files(archive, names):
                 member = source.getmember(name)
             except KeyError:
                 raise ValueError(f"Review file missing from candidate: {name}") from None
-            require(member.isfile() and member.size <= 30000, f"Review file is not a small regular file: {name}")
+            require(member.isfile() and member.size <= 64000, f"Review file is not a small regular file: {name}")
             files[name] = source.extractfile(member).read().decode(errors="replace")
     return files
 
@@ -320,9 +320,9 @@ def run(request, profile, state_dir, agent=None, library=None):
                 save(run_dir / "checks.json", result["checks"])
             review = deterministic_review(request, result["checks"])
             if agent:
-                logs = {e["name"]: (run_dir / e["log"]).read_text(errors="replace")[:12000]
+                logs = {e["name"]: (run_dir / e["log"]).read_text(errors="replace")[:48000]
                         for e in result["checks"]}
-                truncated = any((run_dir / e["log"]).stat().st_size > 12000 for e in result["checks"])
+                truncated = any((run_dir / e["log"]).stat().st_size > 48000 for e in result["checks"])
                 if truncated:
                     plan["gaps"].append("Logs exceed model review limit; narrow checks or review full artifacts")
                     save(run_dir / "beacon.json", plan)

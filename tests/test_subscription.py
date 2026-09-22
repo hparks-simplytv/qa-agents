@@ -53,6 +53,13 @@ class SubscriptionTests(unittest.TestCase):
                 ClaudeSubscription('sonnet').ask('beacon', {})
             self.assertEqual(run.call_count, 2)
         with patch('qa_agents.agents.subprocess.run') as run:
-            with self.assertRaisesRegex(ValueError, '180 KB'):
-                ClaudeSubscription('sonnet').ask('beacon', {'text': 'x'*180001})
+            with self.assertRaisesRegex(ValueError, '400 KB'):
+                ClaudeSubscription('sonnet').ask('beacon', {'text': 'x'*400001})
             run.assert_not_called()
+
+    def test_retained_candidate_context_over_old_cap_is_sent_whole(self):
+        context = {'files': {'tests.py': 'x' * 220000}}
+        response = self.response({'subtype': 'success', 'structured_output': {'checks': [], 'gaps': []}})
+        with patch('qa_agents.agents.subprocess.run', side_effect=[self.auth(), response]) as run:
+            ClaudeSubscription('sonnet').ask('beacon', context)
+            self.assertEqual(json.loads(run.call_args.kwargs['input']), context)

@@ -89,8 +89,8 @@ class ClaudeSubscription:
     def ask(self, role, context):
         prompt = (Path(__file__).parent / "prompts" / f"{role}.md").read_text()
         payload = json.dumps(context)
-        if len(payload.encode()) > 180000:
-            raise ValueError("Agent context exceeds 180 KB; reduce the review scope")
+        if len(payload.encode()) > 400000:
+            raise ValueError("Agent context exceeds 400 KB; reduce the review scope")
         # Never inherit API keys, provider redirects, plugins, or paid fallbacks.
         env = {k: v for k, v in os.environ.items()
                if k in {"HOME", "PATH", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG"}}
