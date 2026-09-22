@@ -160,3 +160,12 @@ Optional installation for the command-line entry point:
 python3 -m pip install -e .
 qa-agents demo
 ```
+
+## Subscription QA
+
+`run --provider claude-subscription --model sonnet` uses an authenticated Claude
+subscription for Beacon and Inspector. Reviews have no execution tools; only the
+host runs the registered checks in isolated environments. API credentials and
+provider overrides are removed, non-subscription authentication is rejected, and
+failed or incomplete reviews block without a fallback. Results retain the provider,
+requested model, effective model usage, structured reviews, and check evidence.

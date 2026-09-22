@@ -3,6 +3,8 @@
 import json
 import os
 from pathlib import Path
+import subprocess
+import tempfile
 import urllib.error
 import urllib.request
 
@@ -70,3 +72,56 @@ class Anthropic:
         if len(blocks) != 1 or not isinstance(blocks[0], str):
             raise ValueError(f"{role} returned an unexpected response")
         return json.loads(blocks[0])
+
+
+class ClaudeSubscription:
+    """Tool-free structured reviews using the authenticated Claude subscription."""
+
+    def __init__(self, model, timeout=180):
+        if not model:
+            raise ValueError("Claude subscription QA requires --model")
+        self.model, self.timeout, self.usage = model, timeout, []
+
+    @property
+    def identity(self):
+        return {"provider": "claude-subscription", "model": self.model}
+
+    def ask(self, role, context):
+        prompt = (Path(__file__).parent / "prompts" / f"{role}.md").read_text()
+        payload = json.dumps(context)
+        if len(payload.encode()) > 180000:
+            raise ValueError("Agent context exceeds 180 KB; reduce the review scope")
+        # Never inherit API keys, provider redirects, plugins, or paid fallbacks.
+        env = {k: v for k, v in os.environ.items()
+               if k in {"HOME", "PATH", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG"}}
+        env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
+        schema = PLAN_SCHEMA if role == "beacon" else REVIEW_SCHEMA
+        argv = ["claude", "--print", "--model", self.model, "--permission-mode", "dontAsk",
+                "--setting-sources", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
+                "--disable-slash-commands", "--no-chrome", "--no-session-persistence",
+                "--tools", "", "--allowedTools", "StructuredOutput", "--output-format", "json",
+                "--json-schema", json.dumps(schema), "--system-prompt", prompt]
+        # No candidate checkout or repository instructions are exposed to the CLI.
+        with tempfile.TemporaryDirectory(prefix="qa-subscription-") as work:
+            try:
+                auth = subprocess.run(["claude", "auth", "status"], env=env, cwd=work,
+                                      capture_output=True, text=True, timeout=30)
+                status = json.loads(auth.stdout)
+                if (not isinstance(status, dict) or auth.returncode or status.get("loggedIn") is not True
+                        or status.get("authMethod") != "claude.ai"):
+                    raise ValueError("Claude subscription unavailable; no API fallback")
+                process = subprocess.run(argv, input=payload, env=env, cwd=work,
+                                         capture_output=True, text=True, timeout=self.timeout)
+            except (subprocess.SubprocessError, OSError):
+                raise ValueError("Claude subscription QA unavailable or timed out; no retry performed") from None
+        try:
+            response = json.loads(process.stdout)
+        except ValueError:
+            raise ValueError("Claude subscription QA returned no structured response") from None
+        if (not isinstance(response, dict) or process.returncode or response.get("is_error")
+                or response.get("subtype") != "success" or response.get("permission_denials")
+                or not isinstance(response.get("structured_output"), dict)):
+            raise ValueError("Claude subscription QA did not complete a structured review; no retry performed")
+        self.usage.append({"role": role, "usage": response.get("usage", {}),
+                           "modelUsage": response.get("modelUsage", {})})
+        return response["structured_output"]

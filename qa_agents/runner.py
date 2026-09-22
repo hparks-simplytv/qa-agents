@@ -229,9 +229,11 @@ def validate_review(review, request, evidence):
         require(isinstance(assessment.get("reason"), str) and assessment["reason"].strip(),
                 "Assessment needs a reason")
         if status == "supported":
-            require(refs and mappings[cid] and mappings[cid] <= set(refs)
+            require(refs and mappings[cid] and mappings[cid] & set(refs)
+                    and all(by_name[name]["status"] == "passed" for name in mappings[cid])
                     and all(by_name[name]["status"] == "passed" for name in refs),
-                    "Inspector claimed support without successful mapped evidence")
+                    f"Inspector claimed support without successful mapped evidence for {cid}; "
+                    f"required checks: {', '.join(sorted(mappings[cid]))}")
         if status == "failed":
             require(refs and any(by_name[name]["status"] == "failed" for name in refs),
                     "Inspector claimed failure without failed check evidence")
@@ -295,7 +297,7 @@ def run(request, profile, state_dir, agent=None, library=None):
             (run_dir / "candidate.tar").write_bytes(archive)
             (run_dir / "change.diff").write_bytes(diff)
             plan = default_plan(request, profile)
-            context = {"brief": request, "profile": profile,
+            context = {"brief": request, "profile": profile, "reviewer": identity,
                        "files": review_files(archive, profile.get("review_files", [])),
                        "diff": diff[:60000].decode(errors="replace"),
                        "diff_truncated": len(diff) > 60000}
@@ -306,6 +308,7 @@ def run(request, profile, state_dir, agent=None, library=None):
                 context["historical_memory"] = memory
             if agent:
                 proposed = agent.ask("beacon", context)
+                save(run_dir / "beacon-proposed.json", proposed)
                 validate_plan(proposed, profile)
                 plan = {"checks": sorted(set(plan["checks"] + proposed["checks"])),
                         "gaps": plan["gaps"] + proposed["gaps"]}
@@ -326,8 +329,8 @@ def run(request, profile, state_dir, agent=None, library=None):
                 review = agent.ask("inspector", {**context, "plan": plan,
                     "evidence": result["checks"], "log_excerpts": logs,
                     "logs_truncated": truncated})
-            validate_review(review, request, result["checks"])
             save(run_dir / "inspector.json", review)
+            validate_review(review, request, result["checks"])
             result["assessments"] = review["assessments"]
             result["verdict"], result["gaps"] = verdict(plan, review, result["checks"])
             if library is not None:

@@ -249,6 +249,16 @@ class RunnerTests(unittest.TestCase):
             self.request["run_id"] = f"case-{index}"
             self.assertEqual(self.execute(FakeAgent(mutation))["verdict"], "blocked")
 
+    def test_relevant_citations_still_require_all_mapped_checks_to_pass(self):
+        self.profile['checks']['lint'] = {'argv': [sys.executable, '-c', 'pass'],
+                                          'required': True, 'timeout_seconds': 5}
+        self.request['criteria'][0]['checks'] = ['value', 'lint']
+        agent = FakeAgent(lambda r: r['assessments'][0].update(status='supported', evidence=['value']))
+        self.assertEqual(self.execute(agent)['verdict'], 'pass')
+        self.request['run_id'] = 'failed-uncited-lint'
+        self.profile['checks']['lint']['argv'] = [sys.executable, '-c', 'raise SystemExit(1)']
+        self.assertEqual(self.execute(agent)['verdict'], 'blocked')
+
     def test_provider_failure_becomes_blocked_result(self):
         agent = FakeAgent()
         agent.ask = lambda *args: (_ for _ in ()).throw(ValueError("Provider unavailable"))
@@ -270,6 +280,18 @@ class RunnerTests(unittest.TestCase):
     def test_missing_review_file_blocks(self):
         self.profile["review_files"] = ["missing.py"]
         self.assertEqual(self.execute()["verdict"], "blocked")
+
+    def test_rejected_inspector_response_is_retained_without_accepting_it(self):
+        def invalid(review):
+            review['assessments'][0]['evidence'] = []
+        result = self.execute(FakeAgent(invalid))
+        self.assertEqual(result['verdict'], 'blocked')
+        self.assertEqual(result['assessments'], [])
+        self.assertIn('required checks: value', result['gaps'][0])
+        review = json.loads((self.state/'run-1/inspector.json').read_text())
+        self.assertEqual(review['assessments'][0]['evidence'], [])
+        self.assertIn('inspector.json', result['artifacts'])
+        self.assertIn('beacon-proposed.json', result['artifacts'])
 
     def test_truncated_model_evidence_cannot_pass(self):
         self.profile["checks"]["value"]["argv"] = [sys.executable, "-c", "print('x' * 13000)"]
