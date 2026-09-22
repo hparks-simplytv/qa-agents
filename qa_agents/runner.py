@@ -259,7 +259,7 @@ def verify_artifacts(run_dir, result):
     return True
 
 
-def run(request, profile, state_dir, agent=None):
+def run(request, profile, state_dir, agent=None, library=None):
     validate(request, profile)
     # Resolve relative repository paths before persisting identity.
     request = {**request, "repo": str(Path(request["repo"]).resolve())}
@@ -267,6 +267,9 @@ def run(request, profile, state_dir, agent=None):
     prompts = {p.name: digest(p.read_bytes()) for p in (Path(__file__).parent / "prompts").glob("*.md")}
     inputs = {"request": request, "profile": profile, "agent": identity,
               "runner_version": __version__, "prompts": prompts}
+    if library is not None:
+        library = str(Path(library).expanduser().resolve())
+        inputs["memory_library"] = library
     fingerprint = digest(json.dumps(inputs, sort_keys=True).encode())
     root = Path(state_dir).resolve()
     with locked(root):
@@ -296,6 +299,11 @@ def run(request, profile, state_dir, agent=None):
                        "files": review_files(archive, profile.get("review_files", [])),
                        "diff": diff[:60000].decode(errors="replace"),
                        "diff_truncated": len(diff) > 60000}
+            if library is not None:
+                from .memory import retrieve
+                memory = retrieve(library, request)
+                save(run_dir / "memory-context.json", memory)
+                context["historical_memory"] = memory
             if agent:
                 proposed = agent.ask("beacon", context)
                 validate_plan(proposed, profile)
@@ -322,6 +330,13 @@ def run(request, profile, state_dir, agent=None):
             save(run_dir / "inspector.json", review)
             result["assessments"] = review["assessments"]
             result["verdict"], result["gaps"] = verdict(plan, review, result["checks"])
+            if library is not None:
+                from .memory import remember
+                try:
+                    result["memory_notes"] = remember(library, run_dir, result, plan, review)
+                except (ValueError, OSError, subprocess.SubprocessError) as exc:
+                    # A persistence failure does not change what the checks established.
+                    result["memory_error"] = str(exc)
         except (ValueError, OSError, subprocess.SubprocessError, tarfile.TarError) as exc:
             result["gaps"].append(str(exc))
         result["usage"] = agent.usage if agent else []

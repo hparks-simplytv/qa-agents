@@ -24,6 +24,7 @@ def main(argv=None):
     check.add_argument("--state-dir", type=Path, default=Path(".qa-runs"))
     check.add_argument("--provider", choices=["deterministic", "anthropic"], default="deterministic")
     check.add_argument("--model", help="Required for Anthropic; choose a model available to your account")
+    check.add_argument("--library", type=Path, help="Trusted shared memory repo; historical context and saved findings")
     demo = sub.add_parser("demo", help="Run real checks against a synthetic pricing fixture")
     demo.add_argument("--state-dir", type=Path, default=Path(".qa-runs"))
     args = parser.parse_args(argv)
@@ -37,7 +38,7 @@ def main(argv=None):
             request["repo"] = str((args.request.resolve().parent / request["repo"]).resolve())
         profile = json.loads(args.profile.read_text())
         agent = Anthropic(args.model) if args.provider == "anthropic" else None
-        result = run(request, profile, args.state_dir, agent)
+        result = run(request, profile, args.state_dir, agent, library=args.library)
         print(json.dumps(result, indent=2))
         return {"pass": 0, "fail": 1, "blocked": 2}[result["verdict"]]
     except (ValueError, OSError) as exc:

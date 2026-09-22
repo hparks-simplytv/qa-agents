@@ -86,6 +86,22 @@ that exceed the model review limits also block a pass.
 
 ## Results and recovery
 
+Optional shared memory: add `--library /path/to/library` to a run to search a trusted
+local Markdown memory repository before planning and save Beacon/Inspector gaps
+after review. It must provide the `memory.py` search/read/write/maintain interface.
+Up to four historical notes (4,000 characters each) are retained in the run's
+`memory-context.json` and supplied as context in model mode. They cannot substitute
+for current check evidence. Deterministic mode records them but does not interpret them.
+The existing provider choice also applies to this context: Anthropic mode sends
+these selected notes with the other run inputs.
+
+Memory is opt-in and no library is discovered from the home directory. A duplicate
+run returns its saved historical result and memory snapshot; it does not retrieve
+new notes or write findings twice. A new run ID retrieves current memory. Memory
+read failures block the run; write failures are reported in `memory_error` without
+altering the verification verdict. The adapter does not commit or publish notes.
+Raw logs stay in the run directory; notes link to the original artifacts.
+
 Each run stores its inputs, source archive, diff, Beacon plan, check logs, Inspector
 assessment, result.json and report.md under its run ID. Results include criterion
 assessments, exit codes, evidence hashes, gaps and the next action. The investigation
